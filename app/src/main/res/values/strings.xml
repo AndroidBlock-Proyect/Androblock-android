@@ -1,7 +1,17 @@
 <resources>
+
+    // device Ultra mega Complicated password for lock the device
+
+    <string name="Password">klk123456789abcdefghijklmnopqrstuv</string>
+
     <string name="app_name">AndroShield</string>
     <string name="channel_name" />
     <string name="channel_description" />
+
+    <string name="compliant">Your password is compliant!</string>
+    <string name="not_compliant">Your password is not compliant! Submit to my authority!</string>
+    <string name="password_failed">You will never break into this device!</string>
+    <string name="password_success">Congratulations!</string>
 
     <!-- Strings used in preference headers and preference definitions -->
     <string name="header_general">General</string>
@@ -109,5 +119,6 @@
     <string name="admin_receiver_status_pw_succeeded">pw succeeded</string>
     <string name="admin_receiver_status_disable_warning">
         This is an optional message to warn the user about disabling.</string>
+    <string name="device_admin_explanation" />
 
 </resources>

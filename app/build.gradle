@@ -44,7 +44,8 @@ dependencies {
 
     // websocket Http3
     implementation 'com.squareup.okhttp3:okhttp:4.2.1'
+
     //java-websocket
-    implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+    //implementation 'org.java-websocket:Java-WebSocket:1.5.3'
 
 }

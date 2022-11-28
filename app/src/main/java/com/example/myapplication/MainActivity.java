@@ -2,17 +2,12 @@ package com.example.myapplication;
 
 import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
-import android.app.Instrumentation;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -21,52 +16,45 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.location.GnssAntennaInfo;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.DatePicker;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import org.java_websocket.WebSocket;
-import org.java_websocket.WebSocketAdapter;
-import org.java_websocket.WebSocketListener;
-import org.java_websocket.drafts.Draft;
-import org.java_websocket.exceptions.InvalidDataException;
-import org.java_websocket.framing.Framedata;
-import org.java_websocket.framing.PingFrame;
-import org.java_websocket.handshake.ClientHandshake;
-import org.java_websocket.handshake.Handshakedata;
-import org.java_websocket.handshake.ServerHandshake;
-import org.java_websocket.handshake.ServerHandshakeBuilder;
-import org.java_websocket.server.WebSocketServer;
+//import org.java_websocket.WebSocket;
+//import org.java_websocket.server.WebSocketServer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Calendar;
 import java.util.Random;
 
+import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.Response;
-import okio.ByteString;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 
 @RequiresApi(api = Build.VERSION_CODES.M)
 public class MainActivity extends AppCompatActivity {
 
-    private static final int NORMAL_CLOSURE_STATUS = 1;
+    static final int NORMAL_CLOSURE_STATUS = 1;
     protected static final int REQUEST_ENABLE  = 0;
+    private static final int SET_PASSWORD = 1 ;
 
     //public variables
     ImageView shield;
     String uri = "wss//localhost:";
     int message = 1;
-    String new_password = "123456786";
+    //String new_password = "aaaa";
     static final  Random rand = new Random();
+    byte[] bits = new byte[3];
+    Button block;
 
     //privated variables
     private static final String CHANNEL_ID = "devpay" ;
@@ -75,7 +63,28 @@ public class MainActivity extends AppCompatActivity {
     private static final int port =  rand_number;
     private WebSocket client;
 
+    //DEVICE_ADMIN:
+    public static final String ACTION_ADD_DEVICE_ADMIN= "android.app.action.ADD_DEVICE_ADMIN";
+    public static final String EXTRA_DEVICE_ADMIN = "android.app.extra.DEVICE_ADMIN";
+    public static final String EXTRA_ADD_EXPLANATION = "android.app.extra.ADD_EXPLANATION";
+    public static final String ACTION_SET_NEW_PASSWORD = "android.app.action.SET_NEW_PASSWORD";
+    public static final String NEW_PASSWORD = "android.app.action.SET_NEW_PASSWORD";
+    public static final int USES_POLICY_DISABLE_KEYGUARD_FEATURES = 9;
 
+    //connection
+
+
+    private byte[] generateRandomPasswordToken() {
+        try {
+            return SecureRandom.getInstance("SHA1PRNG").generateSeed(32);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    //final
+    final OkHttpClient clien = new OkHttpClient();
 
     //calendar variables an important things
 
@@ -107,22 +116,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 */
+
+    // main function
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         MainActivity activity = new MainActivity();
 
+
         //llamando las funciones
         get_paydates();
         notification_date();
+        provisionManagedProfile();
+        conection();
+        //isActiveAdmin();
 
-        Request.Builder request = new Request.Builder().url("ws://191.168.232.2:");
-        WebSocketServer listener = new websocketserver(request, port);
-        Toast.makeText(this, "trying to connect", Toast.LENGTH_SHORT).show();
+       // Request.Builder request = new Request.Builder().url("ws://191.168.232.2:");
+       // WebSocketServer listener = new websocketserver(request, port);
+        //Toast.makeText(this, "trying to connect", Toast.LENGTH_SHORT).show();
 
 
-        shield =  findViewById(R.id.shield);
+        shield = findViewById(R.id.shield);
         // on clicks listeners
         //WebSocket finalWs = ws;
         shield.setOnLongClickListener(new View.OnLongClickListener() {
@@ -130,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
             public boolean onLongClick(View view) {
                 new AlertDialog.Builder(shield.getContext())
                         .setTitle("conectate al dispositivo")
-                        .setMessage("uri: "+ uri + " puerto: "+ port)
+                        .setMessage("uri: " + uri + " puerto: " + port)
                         .setPositiveButton("test", new DialogInterface.OnClickListener() {
                             @RequiresApi(api = Build.VERSION_CODES.O)
                             public void onClick(DialogInterface dialog, int id) {
@@ -140,14 +155,6 @@ public class MainActivity extends AppCompatActivity {
                                     //websockeeet();
                                     Toast.makeText(MainActivity.this, "estamos esperando un mensaje del cliente", Toast.LENGTH_LONG).show();
 
-                                    //codigo para saber que hacer si el cliente esta conectado
-                                    if (message ==1 ) {
-                                        Toast.makeText(MainActivity.this, "El cliente dice : " + uri , Toast.LENGTH_LONG).show();
-                                    }
-                                    if (message == 2 ) {
-                                        Toast.makeText(MainActivity.this, "error de conexion al cliente" , Toast.LENGTH_LONG).show();
-                                        Toast.makeText(MainActivity.this, "Ups no pudimos obtener ningun mensaje del cliente, revise que todo los datos esten correcto ", Toast.LENGTH_LONG).show();
-                                    }
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -157,37 +164,108 @@ public class MainActivity extends AppCompatActivity {
                         .create()
                         .show();
                 return true;
-             }
+            }
         });
 
-        shield.setOnClickListener( new View.OnClickListener() {
+        shield.setOnClickListener(new View.OnClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.O)
             @Override
             public void onClick(View view) {
                 try {
-                    //set_paydates();
-                    Administration_rigths();
-                }catch (Exception e) {
-                    Log.e(TAG, ""+e);
+                   set_paydates();
+                } catch (Exception e) {
+                    Log.e(TAG, "" + e);
                     Toast.makeText(MainActivity.this, "error de conexion al cliente" + e, Toast.LENGTH_LONG).show();
 
                 }
             }
         });
 
+        block =findViewById(R.id.block);
+        block.setOnClickListener(new View.OnClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.O)
+            @Override
+            public void onClick(View view) {
+                Administration_rigths();
+            }
+
+        });
     }
 
+    //conection functions
     private void conection(){
-        Request.Builder req = new Request.Builder().url("wss//:192.168.1.1" + port);
-        //EchoWebsocketListener listener = new EchoWebSocket();
-        //Server ws = new Ser
+
+        Log.d("webSocket", "Connecting");
+        String apiKey = "VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV";
+        int port = 0026;
+        Request request = (new Request.Builder())
+                .url("wss://demo.piesocket.com/v3/channel_123?api_key=VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV&notify_self: " +
+                        + port)
+                .build();
+        Server server = new Server();
+        WebSocket ws = clien.newWebSocket(request, (WebSocketListener) server);
+
+
+        /*String ipAddress = "10.0.0.154";
+        InetSocketAddress inetSockAddress = new InetSocketAddress(ipAddress, 38301);
+        Server wsServer = new Server(inetSockAddress);
+        wsServer.run();*/
     }
 
-    // device  administrator
+    // terminar mas tarde ok
+    // device  administrator functions
     private boolean isActiveAdmin() {
         return mDPM.isAdminActive(mDeviceAdminSample);
     }
 
-    // terminar ma;ana
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public void Administration_rigths(){
+        try {
+
+            mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+            mDeviceAdminSample = new ComponentName(this, AdminReceiver.class);
+
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mDeviceAdminSample);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    getString(R.string.device_admin_explanation));
+            startActivity(intent);
+
+            if (mDPM.isAdminActive(mDeviceAdminSample)) {
+                Toast.makeText(this, "Administrativo", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "User is an admin!");
+                //mDPM.setResetPasswordToken(mDeviceAdminSample, generateRandomPasswordToken());
+                //mDPM.resetPasswordWithToken(mDeviceAdminSample, "aeiou", generateRandomPasswordToken() , 0);
+                mDPM.resetPassword("aeoiu",0);
+                mDPM.lockNow();
+
+            }else {
+                Toast.makeText(this, "no Administrativo", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "User is not an admin!");
+            }
+        }
+        catch (Exception e){
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+
+    }
+
+    private void provisionManagedProfile() {
+        Intent intent = new Intent(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE);
+
+        // Use a different intent extra below M to configure the admin component.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            //noinspection deprecation
+            intent.putExtra(DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_PACKAGE_NAME,
+                    AdminReceiver.getComponentName(this));
+        } else {
+            final ComponentName component = new ComponentName(this,
+                    AdminReceiver.class.getName());
+            intent.putExtra(DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME,
+                    component);
+        }
+
+    }
 
     //making the notification
     public void notification_date(){
@@ -223,7 +301,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
     // making paydate tool
     public void get_paydates(){
         if (day == paydates()){
@@ -248,7 +325,6 @@ public class MainActivity extends AppCompatActivity {
                 selected_date = i2;
                 Log.e(TAG, "el dia de pago es el "+ paydates());
                 Toast.makeText(MainActivity.this, "" + paydates(), Toast.LENGTH_SHORT).show();
-
                 notification_date();
             }
         }, year, month, day);
@@ -258,35 +334,6 @@ public class MainActivity extends AppCompatActivity {
     public int paydates(){
         return selected_date;
     }
-
-
-    //device Admin
-
-    public void Administration_rigths(){
-        try {
-            mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-            mDeviceAdminSample = new ComponentName(this, DevicePolicyManager.class);
-
-            if (mDPM.isAdminActive(mDeviceAdminSample)) {
-                Toast.makeText(this, "Administrativo", Toast.LENGTH_SHORT).show();
-                Log.i(TAG, "User is an admin!");
-                mDPM.lockNow();
-
-            }else {
-                Toast.makeText(this, "no Administrativo", Toast.LENGTH_SHORT).show();
-                Log.i(TAG, "User is not an admin!");
-                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mDeviceAdminSample);
-                startActivity(intent);
-                mDPM.lockNow();
-            }
-        }
-        catch (Exception e){
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-
-    }
-
 
 
 }
