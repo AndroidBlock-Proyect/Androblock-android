@@ -32,7 +32,6 @@ public final class Server extends WebSocketListener {
     MainActivity main = new MainActivity();
 
     @NotNull
-
     public void onOpen(@NotNull WebSocket webSocket, @NotNull Response response) {
         Intrinsics.checkNotNullParameter(webSocket, "webSocket");
         Intrinsics.checkNotNullParameter(response, "response");
