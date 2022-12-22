@@ -45,7 +45,19 @@ dependencies {
     // websocket Http3
     implementation 'com.squareup.okhttp3:okhttp:4.2.1'
 
+    //notificationn
+    //implementation "com.android.support:support-v4:24.1.1"
+
     //java-websocket
     //implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+
+    //auto update
+    //implementation 'com.google.code.gson:gson:2.8.4'
+    //implementation 'com.google.guava:guava:23.3-android'
+    //implementation 'com.squareup.okio:okio:1.14.0'
+    //implementation "io.reactivex.rxjava2:rxjava:2.1.1"
+    //implementation "io.reactivex.rxjava2:rxandroid:2.0.2"
+
+    //implementation 'com.github.systembugtj:autoupdate:2.1.0'
 
 }

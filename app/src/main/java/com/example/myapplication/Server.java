@@ -1,8 +1,10 @@
 package com.example.myapplication;
 
+import static android.app.admin.DeviceAdminReceiver.ACTION_DEVICE_ADMIN_ENABLED;
 import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
 import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.os.Build;
 import android.util.Log;
@@ -14,6 +16,8 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.net.InetSocketAddress;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 
 //import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
@@ -28,8 +32,17 @@ import okhttp3.WebSocketListener;
 @RequiresApi(api = Build.VERSION_CODES.M)
 public final class Server extends WebSocketListener {
     private static final int NORMAL_CLOSURE_STATUS = 1000;
-
+    ComponentName mDeviceAdminSample;
     MainActivity main = new MainActivity();
+    private byte[] tokn() {
+        try {
+            return SecureRandom.getInstance("SHA1PRNG").generateSeed(32);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 
     @NotNull
     public void onOpen(@NotNull WebSocket webSocket, @NotNull Response response) {
@@ -48,6 +61,7 @@ public final class Server extends WebSocketListener {
 
         //admin
         DevicePolicyManager mDPM = (DevicePolicyManager) main.getSystemService(Context.DEVICE_POLICY_SERVICE);
+        mDeviceAdminSample = MainActivity.mDeviceAdminSample;
 
         switch (text) {
             case "hello":
@@ -59,20 +73,21 @@ public final class Server extends WebSocketListener {
             case "block":
                 // block the device with a custom password
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    mDPM.resetPassword("klk",0);
+                    mDPM.resetPasswordWithToken(this.mDeviceAdminSample, "Pague Su Deuda", tokn(), 1);
                 }
                 break;
             case "unlock":
                 // unlock the device
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    mDPM.clearResetPasswordToken(this.mDeviceAdminSample);
+                }
                 break;
             case "update":
+                // this is for auto update the app
                 break;
             default:
                 break;
-
-
         }
-
     }
 
     public void onClosing(@NotNull WebSocket webSocket, int code, @NotNull String reason) {
@@ -97,10 +112,5 @@ public final class Server extends WebSocketListener {
         Log.d("PieSocket", "send_message");
         socket.send("hola buenas");
     }
-
-}
-
-class admin extends AppCompatActivity{
-
 
 }

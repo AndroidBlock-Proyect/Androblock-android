@@ -2,26 +2,34 @@ package com.example.myapplication;
 
 import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.DatePicker;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -34,6 +42,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Calendar;
 import java.util.Random;
+import java.util.Set;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -51,16 +60,11 @@ public class MainActivity extends AppCompatActivity {
     ImageView shield;
     String uri = "wss//localhost:";
     int message = 1;
-    //String new_password = "aaaa";
-    static final  Random rand = new Random();
-    byte[] bits = new byte[3];
-    Button block;
+    int port ;
 
     //privated variables
     private static final String CHANNEL_ID = "devpay" ;
     private static final int CHANNEL_ID_iNT = 4 ;
-    private static int rand_number = rand.nextInt(4000) + 1000;
-    private static final int port =  rand_number;
     private WebSocket client;
 
     //DEVICE_ADMIN:
@@ -70,9 +74,6 @@ public class MainActivity extends AppCompatActivity {
     public static final String ACTION_SET_NEW_PASSWORD = "android.app.action.SET_NEW_PASSWORD";
     public static final String NEW_PASSWORD = "android.app.action.SET_NEW_PASSWORD";
     public static final int USES_POLICY_DISABLE_KEYGUARD_FEATURES = 9;
-
-    //connection
-
 
     private byte[] generateRandomPasswordToken() {
         try {
@@ -87,35 +88,19 @@ public class MainActivity extends AppCompatActivity {
     final OkHttpClient clien = new OkHttpClient();
 
     //calendar variables an important things
-
     Calendar mcurrentDate = Calendar.getInstance();
     int year = mcurrentDate.get(Calendar.YEAR);
     int month = mcurrentDate.get(Calendar.MONTH);
     int day = mcurrentDate.get(Calendar.DAY_OF_MONTH);
 
-    //int year ;
-    //int month ;
     int selected_date;
-    //final int payday = paydates();\
 
     DevicePolicyManager mDPM;
-    ComponentName mDeviceAdminSample;
-/*
-    public void websockeeet() throws IOException, NoSuchAlgorithmException {
-        ServerSocket server = new ServerSocket(80);
-        try {
-            Socket cliente = server.accept();
-            Log.e(TAG, "info del puerto" + server);
-            System.out.println("a client connected");
-            InputStream input = cliente.getInputStream();
-            OutputStream output = cliente.getOutputStream();
-            Scanner s = new Scanner(input, "UTF-8");
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-*/
+    static ComponentName mDeviceAdminSample;
+
+
+    //db
+    DBmanager db;
 
     // main function
     @Override
@@ -124,55 +109,25 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         MainActivity activity = new MainActivity();
 
+        //dandole el valor al puerto y al paydate
+
+        // port =  datos extraido de la db
+        // paydate = datos extraido de la db
 
         //llamando las funciones
-        get_paydates();
         notification_date();
         provisionManagedProfile();
         conection();
         //isActiveAdmin();
 
-       // Request.Builder request = new Request.Builder().url("ws://191.168.232.2:");
-       // WebSocketServer listener = new websocketserver(request, port);
-        //Toast.makeText(this, "trying to connect", Toast.LENGTH_SHORT).show();
-
-
         shield = findViewById(R.id.shield);
-        // on clicks listeners
-        //WebSocket finalWs = ws;
-        shield.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View view) {
-                new AlertDialog.Builder(shield.getContext())
-                        .setTitle("conectate al dispositivo")
-                        .setMessage("uri: " + uri + " puerto: " + port)
-                        .setPositiveButton("test", new DialogInterface.OnClickListener() {
-                            @RequiresApi(api = Build.VERSION_CODES.O)
-                            public void onClick(DialogInterface dialog, int id) {
-                                //aqui se pondra el codigo para abrir la conexion del dispositivo y hacer la primera prueba
-
-                                try {
-                                    //websockeeet();
-                                    Toast.makeText(MainActivity.this, "estamos esperando un mensaje del cliente", Toast.LENGTH_LONG).show();
-
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-
-                            }
-                        })
-                        .create()
-                        .show();
-                return true;
-            }
-        });
 
         shield.setOnClickListener(new View.OnClickListener() {
             @RequiresApi(api = Build.VERSION_CODES.O)
             @Override
             public void onClick(View view) {
                 try {
-                   set_paydates();
+                    set_paydates();
                 } catch (Exception e) {
                     Log.e(TAG, "" + e);
                     Toast.makeText(MainActivity.this, "error de conexion al cliente" + e, Toast.LENGTH_LONG).show();
@@ -181,15 +136,67 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        block =findViewById(R.id.block);
+       /* block =findViewById(R.id.block);
         block.setOnClickListener(new View.OnClickListener() {
             @RequiresApi(api = Build.VERSION_CODES.O)
             @Override
             public void onClick(View view) {
-                Administration_rigths();
             }
 
-        });
+        });*/
+    }
+
+    private void set_port() {
+        try {
+            if (port == 0) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setTitle("Define el numero de puerto ");
+                builder.setMessage("Recuerda que el numero de puerto debe ser unico ");
+
+                // Set up the input
+                final EditText input = new EditText(MainActivity.this);
+
+                // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                builder.setView(input);
+
+                // Set up the buttons
+                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        port = Integer.parseInt(input.getText().toString());
+                        Connection.conection(port);
+                        Toast.makeText(MainActivity.this, "estamos esperando un mensaje del cliente" + port, Toast.LENGTH_LONG).show();
+                    }
+                });
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
+                    }
+                });
+                builder.show();
+            }
+            if (port > 0 ){
+                new AlertDialog.Builder(shield.getContext())
+                        .setTitle("conectate al dispositivo")
+                        .setMessage("uri: " + uri + " puerto: " + port)
+                        .setPositiveButton("test", new DialogInterface.OnClickListener() {
+                            @RequiresApi(api = Build.VERSION_CODES.O)
+                            public void onClick(DialogInterface dialog, int id) {
+                                Connection.conection(port);
+                                Toast.makeText(MainActivity.this, "estamos esperando un mensaje del cliente" + port, Toast.LENGTH_LONG).show();
+                            }
+                        })
+                        .create()
+                        .show();
+            }
+            else{
+                //conection( port);
+            }
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     //conection functions
@@ -197,22 +204,15 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d("webSocket", "Connecting");
         String apiKey = "VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV";
-        int port = 0026;
         Request request = (new Request.Builder())
                 .url("wss://demo.piesocket.com/v3/channel_123?api_key=VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV&notify_self: " +
                         + port)
                 .build();
         Server server = new Server();
         WebSocket ws = clien.newWebSocket(request, (WebSocketListener) server);
-
-
-        /*String ipAddress = "10.0.0.154";
-        InetSocketAddress inetSockAddress = new InetSocketAddress(ipAddress, 38301);
-        Server wsServer = new Server(inetSockAddress);
-        wsServer.run();*/
+        //db.insert(port, paydates());
     }
 
-    // terminar mas tarde ok
     // device  administrator functions
     private boolean isActiveAdmin() {
         return mDPM.isAdminActive(mDeviceAdminSample);
@@ -235,8 +235,8 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Administrativo", Toast.LENGTH_SHORT).show();
                 Log.i(TAG, "User is an admin!");
                 //mDPM.setResetPasswordToken(mDeviceAdminSample, generateRandomPasswordToken());
-                //mDPM.resetPasswordWithToken(mDeviceAdminSample, "aeiou", generateRandomPasswordToken() , 0);
-                mDPM.resetPassword("aeoiu",0);
+                mDPM.resetPasswordWithToken(mDeviceAdminSample, "aeiou", generateRandomPasswordToken() , 0);
+                //mDPM.resetPassword("aeoiu",0);
                 mDPM.lockNow();
 
             }else {
@@ -269,71 +269,101 @@ public class MainActivity extends AppCompatActivity {
 
     //making the notification
     public void notification_date(){
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        if (day == paydates()) {
-            Notification builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("notificacion del dispositivo")
-                    .setContentText(" hoy es el dia del pago del dispositivo, no esperes a que te cobren mora")
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .build();
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel("Notification",
+                "Main Notification",
+                NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setDescription("");
+            mNotificationManager.createNotificationChannel(channel);
         }
-        else if (day == paydates() -3){
-            Notification builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("notificacion del dispositivo")
-                    .setContentText(" Recuerda que el pago del dispositivo es pronto, no esperes a que te cobren mora")
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .build();
-        }
-    }
-    private void createNotificationChannel() {
-        // Create the NotificationChannel, but only on API 26+ because
-        // the NotificationChannel class is new and not in the support library
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = getString(R.string.channel_name);
-            String description = getString(R.string.channel_description);
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
-            channel.setDescription(description);
-            // Register the channel with the system; you can't change the importance
-            // or other notification behaviors after this
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(channel);
-        }
-    }
+        try {
+            if (day == selected_date + 1) {
+                String message = " Recuerda que debe pagar el telfono para que no te cobren atraso si ya ha pagado obviar este mensaje";
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "Notification");
+                builder.setContentTitle("Recordatorio de pago");
+                builder.setContentText(message);
+                builder.setSmallIcon(R.mipmap.shield);
+                builder.setAutoCancel(true);
 
-    // making paydate tool
-    public void get_paydates(){
-        if (day == paydates()){
-            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("Dia de pago")
-                    .setMessage(" recuerda que hoy es el dia de pago del telefono");
-            builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int id) {
-                    dialog.dismiss();
-                }
-            });
-        }
+                Intent intent = new Intent(this, NotificationActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                intent.putExtra("message", message);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+                builder.setContentIntent(pendingIntent);
 
-    }
-    public void set_paydates(){
-
-        DatePickerDialog dpd = new DatePickerDialog(MainActivity.this, new DatePickerDialog.OnDateSetListener(){
-            @Override
-            public void onDateSet(DatePicker datePicker, int i, int i1, int i2) {
-                message = 1;
-                selected_date = i2;
-                Log.e(TAG, "el dia de pago es el "+ paydates());
-                Toast.makeText(MainActivity.this, "" + paydates(), Toast.LENGTH_SHORT).show();
-                notification_date();
+                NotificationManagerCompat managerCompat = NotificationManagerCompat.from(this);
+                managerCompat.notify(1, builder.build());
             }
-        }, year, month, day);
-        dpd.setTitle("selecciona la fecha");
-        dpd.show();
+            if (day == selected_date - 1) {
+                String message = " Recuerda que debe pagar el telfono para que no te cobren atraso si ya ha pagado obviar este mensaje";
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "Notification");
+                builder.setContentTitle("Recordatorio de pago");
+                builder.setContentText(message);
+                builder.setSmallIcon(R.mipmap.shield);
+                builder.setAutoCancel(true);
+
+                Intent intent = new Intent(this, NotificationActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                intent.putExtra("message", message);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+                builder.setContentIntent(pendingIntent);
+
+                NotificationManagerCompat managerCompat = NotificationManagerCompat.from(this);
+                managerCompat.notify(1, builder.build());
+            }
+            if (day == selected_date) {
+                String message = " Recuerda que debe pagar el telfono para que no te cobren atraso si ya ha pagado obviar este mensaje";
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "Notification");
+                builder.setContentTitle("Recordatorio de pago");
+                builder.setContentText(message);
+                builder.setSmallIcon(R.mipmap.shield);
+                builder.setAutoCancel(true);
+
+                Intent intent = new Intent(this, NotificationActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                intent.putExtra("message", message);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+                builder.setContentIntent(pendingIntent);
+
+                NotificationManagerCompat managerCompat = NotificationManagerCompat.from(this);
+                managerCompat.notify(1, builder.build());
+            }
+            else {
+                Log.e(TAG, "hoy no es el, dia de pago ");
+            }
+        }
+        catch (Exception e) {
+            Log.e(TAG, e.toString());
+        }
     }
-    public int paydates(){
+
+/*    public int paydates(){
         return selected_date;
     }
+*/
+    public void set_paydates(){
+        if (selected_date == 0){
+            DatePickerDialog dpd = new DatePickerDialog(MainActivity.this, new DatePickerDialog.OnDateSetListener(){
 
+                @Override
+                public void onDateSet(DatePicker datePicker, int year, int month, int day) {
+                    message = 0;
+                    selected_date = day;
+                    Log.e(TAG, "el dia de pago es el "+ selected_date);
+                    Toast.makeText(MainActivity.this, "" + selected_date, Toast.LENGTH_SHORT).show();
+                    notification_date();
+                    set_port();
 
+                }
+            }, year, month, day);
+            dpd.setTitle("selecciona la fecha");
+            dpd.show();
+        }
+        else {
+            Toast.makeText(MainActivity.this, "el dia de paga es el:  " + selected_date, Toast.LENGTH_SHORT).show();
+            set_port();
+        }
+    }
 }
